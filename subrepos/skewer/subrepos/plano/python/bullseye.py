@@ -86,11 +86,7 @@ def build(app, prefix=None, clean_=False):
         clean(app)
 
     build_file = join(project.build_dir, "build.json")
-    build_data = {}
-
-    if exists(build_file):
-        build_data = read_json(build_file)
-
+    build_data = read_json(build_file) if exists(build_file) else {}
     mtime = _os.stat(project.source_dir).st_mtime
 
     for path in find(project.source_dir):
@@ -120,8 +116,16 @@ def build(app, prefix=None, clean_=False):
 
     for path in find(project.source_dir, "*.py"):
         module_name = get_name_stem(path)
-        included = any([_fnmatch.fnmatchcase(module_name, x) for x in project.included_modules])
-        excluded = any([_fnmatch.fnmatchcase(module_name, x) for x in project.excluded_modules])
+        included = any(
+            _fnmatch.fnmatchcase(module_name, x)
+            for x in project.included_modules
+        )
+
+        excluded = any(
+            _fnmatch.fnmatchcase(module_name, x)
+            for x in project.excluded_modules
+        )
+
 
         if included and not excluded:
             copy(path, join(project.build_dir, project.name, path), inside=False, symlinks=False)
@@ -152,7 +156,7 @@ def test(app, include="*", exclude=None, enable=None, list_=False, verbose=False
             notice("No tests found")
             return
 
-        args = list()
+        args = []
 
         if list_:
             print_tests(modules)
@@ -174,7 +178,7 @@ def install(app, staging_dir="", prefix=None, clean_=False):
 
     build_file = join(project.build_dir, "build.json")
     build_data = read_json(build_file)
-    build_prefix = project.build_dir + "/"
+    build_prefix = f"{project.build_dir}/"
     install_prefix = staging_dir + build_data["prefix"]
 
     for path in find(join(project.build_dir, "bin")):
@@ -285,7 +289,7 @@ class _StringCatalog(dict):
         check_file(self.path)
 
         key = None
-        out = list()
+        out = []
 
         for line in read_lines(self.path):
             line = line.rstrip()
@@ -294,7 +298,7 @@ class _StringCatalog(dict):
                 if key:
                     self[key] = "".join(out).strip() + "\n"
 
-                out = list()
+                out = []
                 key = line[1:-1]
 
                 continue

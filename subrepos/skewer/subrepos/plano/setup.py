@@ -57,7 +57,7 @@ def find_data_files(dir, output_prefix):
         for name in files:
             data_files[os.path.join(output_prefix, root)].append(os.path.join(root, name))
 
-    return [(k, v) for k, v in data_files.items()]
+    return list(data_files.items())
 
 setup(name="plano",
       version="1.0.0-SNAPSHOT",

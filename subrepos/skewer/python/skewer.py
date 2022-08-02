@@ -30,7 +30,7 @@ class _StringCatalog(dict):
         check_file(self.path)
 
         key = None
-        out = list()
+        out = []
 
         for line in read_lines(self.path):
             line = line.rstrip()
@@ -39,7 +39,7 @@ class _StringCatalog(dict):
                 if key:
                     self[key] = "".join(out).strip()
 
-                out = list()
+                out = []
                 key = line[1:-1]
 
                 continue
@@ -158,20 +158,20 @@ def run_steps_on_minikube(skewer_file):
     work_dir = make_temp_dir()
 
     try:
-        run(f"minikube -p skewer start")
+        run("minikube -p skewer start")
 
         for name, value in skewer_data["sites"].items():
             kubeconfig = value["kubeconfig"].replace("~", work_dir)
 
             with working_env(KUBECONFIG=kubeconfig):
-                run(f"minikube -p skewer update-context")
+                run("minikube -p skewer update-context")
                 check_file(ENV["KUBECONFIG"])
 
         with open("/tmp/minikube-tunnel-output", "w") as tunnel_output_file:
-            with start(f"minikube -p skewer tunnel", output=tunnel_output_file):
+            with start("minikube -p skewer tunnel", output=tunnel_output_file):
                 _run_steps(work_dir, skewer_data)
     finally:
-        run(f"minikube -p skewer delete")
+        run("minikube -p skewer delete")
 
 def run_steps_external(skewer_file, **kubeconfigs):
     with open(skewer_file) as file:
@@ -205,10 +205,11 @@ def _run_step(work_dir, skewer_data, step_data):
     try:
         items = step_data["commands"].items()
     except AttributeError:
-        items = list()
+        items = [
+            (context_name, step_data["commands"])
+            for context_name in skewer_data["sites"]
+        ]
 
-        for context_name in skewer_data["sites"]:
-            items.append((context_name, step_data["commands"]))
 
     for context_name, commands in items:
         kubeconfig = skewer_data["sites"][context_name]["kubeconfig"].replace("~", work_dir)
@@ -234,25 +235,14 @@ def generate_readme(skewer_file, output_file):
     with open(skewer_file) as file:
         skewer_data = _yaml.safe_load(file)
 
-    out = list()
-
-    out.append(f"# {skewer_data['title']}")
-    out.append("")
+    out = [f"# {skewer_data['title']}", ""]
 
     if "github_actions_url" in skewer_data:
         url = skewer_data["github_actions_url"]
-        out.append(f"[![main]({url}/badge.svg)]({url})")
-        out.append("")
-
+        out.extend((f"[![main]({url}/badge.svg)]({url})", ""))
     if "subtitle" in skewer_data:
-        out.append(f"#### {skewer_data['subtitle']}")
-        out.append("")
-
-    out.append(_strings["example_suite_para"])
-    out.append("")
-    out.append("#### Contents")
-    out.append("")
-
+        out.extend((f"#### {skewer_data['subtitle']}", ""))
+    out.extend((_strings["example_suite_para"], "", "#### Contents", ""))
     if "overview" in skewer_data:
         out.append("* [Overview](#overview)")
 
@@ -283,49 +273,37 @@ def generate_readme(skewer_file, output_file):
     out.append("")
 
     if "overview" in skewer_data:
-        out.append("## Overview")
-        out.append("")
-        out.append(skewer_data["overview"].strip())
-        out.append("")
-
+        out.extend(("## Overview", ""))
+        out.extend((skewer_data["overview"].strip(), ""))
     if "prerequisites" in skewer_data:
-        out.append("## Prerequisites")
-        out.append("")
-        out.append(skewer_data["prerequisites"].strip())
-        out.append("")
-
+        out.extend(("## Prerequisites", ""))
+        out.extend((skewer_data["prerequisites"].strip(), ""))
     for i, step_data in enumerate(skewer_data["steps"], 1):
-        out.append(f"## Step {i}: {step_data['title']}")
-        out.append("")
-        out.append(_generate_readme_step(skewer_data, step_data))
-        out.append("")
-
+        out.extend((f"## Step {i}: {step_data['title']}", ""))
+        out.extend((_generate_readme_step(skewer_data, step_data), ""))
     if "summary" in skewer_data:
-        out.append("## Summary")
-        out.append("")
-        out.append(skewer_data["summary"].strip())
-        out.append("")
-
+        out.extend(("## Summary", ""))
+        out.extend((skewer_data["summary"].strip(), ""))
     if "cleaning_up" in skewer_data:
-        out.append("## Cleaning up")
-        out.append("")
-        out.append(_generate_readme_step(skewer_data, skewer_data["cleaning_up"]))
-        out.append("")
+        out.extend(("## Cleaning up", ""))
+        out.extend(
+            (
+                _generate_readme_step(skewer_data, skewer_data["cleaning_up"]),
+                "",
+            )
+        )
 
     if "next_steps" in skewer_data:
-        out.append("## Next steps")
-        out.append("")
+        out.extend(("## Next steps", ""))
         out.append(skewer_data["next_steps"].strip())
 
     write(output_file, "\n".join(out).strip() + "\n")
 
 def _generate_readme_step(skewer_data, step_data):
-    out = list()
+    out = []
 
     if "preamble" in step_data:
-        out.append(step_data["preamble"].strip())
-        out.append("")
-
+        out.extend((step_data["preamble"].strip(), ""))
     if "commands" in step_data:
         try:
             items = step_data["commands"].items()
@@ -333,40 +311,29 @@ def _generate_readme_step(skewer_data, step_data):
             items = ((None, step_data["commands"]),)
 
         for context_name, commands in items:
-            outputs = list()
+            outputs = []
 
             if context_name:
                 namespace = skewer_data["sites"][context_name]["namespace"]
                 out.append(f"Console for _{namespace}_:")
-                out.append("")
             else:
                 out.append("Console:")
-                out.append("")
-
-            out.append("~~~ shell")
-
+            out.extend(("", "~~~ shell"))
             for command in commands:
                 out.append(command["run"])
 
                 if "output" in command:
                     outputs.append((command["run"], command["output"]))
 
-            out.append("~~~")
-            out.append("")
-
+            out.extend(("~~~", ""))
             if outputs:
-                out.append("Sample output:")
-                out.append("")
-                out.append("~~~")
-
+                out.extend(("Sample output:", "", "~~~"))
                 if len(outputs) > 1:
                     out.append("\n\n".join((f"$ {run}\n{output.strip()}" for run, output in outputs)))
                 else:
                     out.append(outputs[0][1].strip())
 
-                out.append("~~~")
-                out.append("")
-
+                out.extend(("~~~", ""))
     if "postamble" in step_data:
         out.append(step_data["postamble"].strip())
 
@@ -388,10 +355,10 @@ def _apply_standard_steps(skewer_data):
             step_data["postamble"] = standard_step_data["postamble"]
 
         if "commands" in standard_step_data:
-            step_data["commands"] = dict()
+            step_data["commands"] = {}
 
             for namespace, context_data in skewer_data["sites"].items():
-                resolved_commands = list()
+                resolved_commands = []
 
                 for command in standard_step_data["commands"]:
                     resolved_command = dict(command)

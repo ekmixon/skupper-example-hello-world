@@ -320,7 +320,7 @@ def repl(vars): # pragma: nocover
     _code.InteractiveConsole(locals=vars).interact()
 
 def print_properties(props, file=None):
-    size = max([len(x[0]) for x in props])
+    size = max(len(x[0]) for x in props)
 
     for prop in props:
         name = "{0}:".format(prop[0])
@@ -472,11 +472,7 @@ def get_hostname():
     return _socket.gethostname()
 
 def get_program_name(command=None):
-    if command is None:
-        args = ARGS
-    else:
-        args = command.split()
-
+    args = ARGS if command is None else command.split()
     for arg in args:
         if "=" not in arg:
             return get_base_name(arg)
@@ -691,7 +687,7 @@ def tail_lines(file, count):
 
     with _codecs.open(file, encoding="utf-8", mode="r") as f:
         pos = count + 1
-        lines = list()
+        lines = []
 
         while len(lines) <= count:
             try:
@@ -718,13 +714,7 @@ def skip(iterable, values=(None, "", (), [], {})):
     if is_scalar(values):
         values = (values,)
 
-    items = list()
-
-    for item in iterable:
-        if item not in values:
-            items.append(item)
-
-    return items
+    return [item for item in iterable if item not in values]
 
 ## JSON operations
 
@@ -779,9 +769,8 @@ def _run_curl(method, url, content=None, content_file=None, content_type=None, o
 
     if output_file is None:
         return call(command, input=content)
-    else:
-        make_parent_dir(output_file, quiet=True)
-        run(command, input=content)
+    make_parent_dir(output_file, quiet=True)
+    run(command, input=content)
 
 def http_get(url, output_file=None, insecure=False):
     return _run_curl("GET", url, output_file=output_file, insecure=insecure)
@@ -1093,10 +1082,7 @@ def _format_command(command, represent=True):
     if not is_string(command):
         command = " ".join(command)
 
-    if represent:
-        return repr(command)
-    else:
-        return command
+    return repr(command) if represent else command
 
 # quiet=False - Don't log at notice level
 # stash=False - No output unless there is an error
@@ -1137,17 +1123,12 @@ def start(command, stdin=None, stdout=None, stderr=None, output=None, shell=Fals
         stdout = out
         stderr = out
 
-    if shell:
-        if is_string(command):
-            args = command
-        else:
-            args = " ".join(command)
+    if shell and is_string(command) or not shell and not is_string(command):
+        args = command
+    elif shell and not is_string(command):
+        args = " ".join(command)
     else:
-        if is_string(command):
-            args = _shlex.split(command)
-        else:
-            args = command
-
+        args = _shlex.split(command)
     try:
         proc = PlanoProcess(args, stdin=stdin, stdout=stdout, stderr=stderr, shell=shell, close_fds=True, stash_file=stash_file)
     except OSError as e:
@@ -1271,7 +1252,7 @@ def exit(arg=None, *args, **kwargs):
 
     raise PlanoException("Illegal argument")
 
-_child_processes = list()
+_child_processes = []
 
 class PlanoProcess(_subprocess.Popen):
     def __init__(self, args, **options):
@@ -1342,13 +1323,11 @@ def shorten(string, max, ellipsis=None):
 
     if max is None or len(string) < max:
         return string
-    else:
-        if ellipsis is not None:
-            string = string + ellipsis
-            end = _max(0, max - len(ellipsis))
-            return string[0:end] + ellipsis
-        else:
-            return string[0:max]
+    if ellipsis is None:
+        return string[:max]
+    string = string + ellipsis
+    end = _max(0, max - len(ellipsis))
+    return string[:end] + ellipsis
 
 def plural(noun, count=0, plural=None):
     if noun in (None, ""):
@@ -1358,18 +1337,11 @@ def plural(noun, count=0, plural=None):
         return noun
 
     if plural is None:
-        if noun.endswith("s"):
-            plural = "{0}ses".format(noun)
-        else:
-            plural = "{0}s".format(noun)
-
+        plural = "{0}ses".format(noun) if noun.endswith("s") else "{0}s".format(noun)
     return plural
 
 def capitalize(string):
-    if not string:
-        return ""
-
-    return string[0].upper() + string[1:]
+    return string[0].upper() + string[1:] if string else ""
 
 def base64_encode(string):
     return _base64.b64encode(string)
@@ -1517,10 +1489,7 @@ def get_unique_id(bytes=16):
 ## Value operations
 
 def nvl(value, replacement):
-    if value is None:
-        return replacement
-
-    return value
+    return replacement if value is None else value
 
 def is_string(value):
     return isinstance(value, str)
@@ -1593,6 +1562,9 @@ def emit_yaml(data):
 ## Test operations
 
 def test(_function=None, name=None, timeout=None, disabled=False):
+
+
+
     class Test(object):
         def __init__(self, function):
             self.function = function
@@ -1603,7 +1575,7 @@ def test(_function=None, name=None, timeout=None, disabled=False):
             self.module = _inspect.getmodule(self.function)
 
             if not hasattr(self.module, "_plano_tests"):
-                self.module._plano_tests = list()
+                self.module._plano_tests = []
 
             self.module._plano_tests.append(self)
 
@@ -1617,10 +1589,8 @@ def test(_function=None, name=None, timeout=None, disabled=False):
         def __repr__(self):
             return "test '{0}:{1}'".format(self.module.__name__, self.name)
 
-    if _function is None:
-        return Test
-    else:
-        return Test(_function)
+
+    return Test if _function is None else Test(_function)
 
 def print_tests(modules):
     if _inspect.ismodule(modules):
@@ -1663,16 +1633,19 @@ def run_tests(modules, include="*", exclude=(), enable=(), test_timeout=300, fai
         if verbose:
             notice("Running tests from module {0} (file {1})", repr(module.__name__), repr(module.__file__))
         elif not quiet:
-            cprint("=== Module {} ===".format(repr(module.__name__)), color="cyan")
+            cprint(f"=== Module {repr(module.__name__)} ===", color="cyan")
 
         if not hasattr(module, "_plano_tests"):
             warn("Module {0} has no tests", repr(module.__name__))
             continue
 
         for test in module._plano_tests:
-            included = any([_fnmatch.fnmatchcase(test.name, x) for x in include])
-            excluded = any([_fnmatch.fnmatchcase(test.name, x) for x in exclude])
-            disabled = test.disabled and not any([_fnmatch.fnmatchcase(test.name, x) for x in enable])
+            included = any(_fnmatch.fnmatchcase(test.name, x) for x in include)
+            excluded = any(_fnmatch.fnmatchcase(test.name, x) for x in exclude)
+            disabled = test.disabled and not any(
+                _fnmatch.fnmatchcase(test.name, x) for x in enable
+            )
+
 
             if included and not excluded and not disabled:
                 test_run.tests.append(test)
@@ -1726,7 +1699,7 @@ def _run_test(test_run, test):
     if test_run.verbose:
         notice("Running {0}", test)
     elif not test_run.quiet:
-        print("{0:.<72} ".format(test.name + " "), end="")
+        print("{0:.<72} ".format(f"{test.name} "), end="")
 
     timeout = nvl(test.timeout, test_run.test_timeout)
 
@@ -1809,10 +1782,10 @@ class TestRun(object):
         self.verbose = verbose
         self.quiet = quiet
 
-        self.tests = list()
-        self.skipped_tests = list()
-        self.failed_tests = list()
-        self.passed_tests = list()
+        self.tests = []
+        self.skipped_tests = []
+        self.failed_tests = []
+        self.passed_tests = []
 
     def __repr__(self):
         return format_repr(self)
@@ -1923,7 +1896,7 @@ class PlanoTestCommand(BaseCommand):
             print_tests(self.test_modules)
             return
 
-        for i in range(self.iterations):
+        for _ in range(self.iterations):
             run_tests(self.test_modules, include=self.include_patterns, exclude=self.exclude_patterns, enable=self.enable_patterns,
                       test_timeout=self.timeout, fail_fast=self.fail_fast, verbose=self.verbose, quiet=self.quiet)
 
@@ -1938,6 +1911,9 @@ _command_help = {
 }
 
 def command(_function=None, name=None, args=None, parent=None):
+
+
+
     class Command(object):
         def __init__(self, function):
             self.function = function
@@ -1999,7 +1975,7 @@ def command(_function=None, name=None, args=None, parent=None):
                     arg.positional = True
                 elif param.kind is param.POSITIONAL_OR_KEYWORD and param.default is param.empty:
                     arg.positional = True
-                elif param.kind is param.POSITIONAL_OR_KEYWORD and param.default is not param.empty:
+                elif param.kind is param.POSITIONAL_OR_KEYWORD:
                     arg.optional = True
                     arg.default = param.default
                 elif param.kind is param.VAR_POSITIONAL:
@@ -2084,17 +2060,11 @@ def command(_function=None, name=None, args=None, parent=None):
                     if value == arg.default:
                         continue
 
-                    if value in (True, False):
-                        value = str(value).lower()
-                    else:
-                        value = repr(value)
-
+                    value = str(value).lower() if value in (True, False) else repr(value)
                     yield "{0}={1}".format(arg.display_name, value)
 
-    if _function is None:
-        return Command
-    else:
-        return Command(_function)
+
+    return Command if _function is None else Command(_function)
 
 class CommandArgument(object):
     def __init__(self, name, display_name=None, type=None, metavar=None, help=None, short_option=None, default=None, positional=False):
@@ -2130,7 +2100,7 @@ class PlanoCommand(BaseCommand):
         self.parser = _argparse.ArgumentParser(parents=(self.pre_parser,), add_help=False, allow_abbrev=False)
 
         self.bound_commands = _collections.OrderedDict()
-        self.running_commands = list()
+        self.running_commands = []
 
         self.default_command_name = None
         self.default_command_args = None
@@ -2165,8 +2135,8 @@ class PlanoCommand(BaseCommand):
             self.command_kwargs = self.default_command_kwargs
         else:
             self.selected_command = self.bound_commands[args.command]
-            self.command_args = list()
-            self.command_kwargs = dict()
+            self.command_args = []
+            self.command_kwargs = {}
 
             for arg in self.selected_command.args.values():
                 if arg.positional:
@@ -2245,7 +2215,7 @@ class PlanoCommand(BaseCommand):
                     else:
                         subparser.add_argument(arg.name, metavar=arg.metavar, type=arg.type, help=arg.help)
                 else:
-                    flag_args = list()
+                    flag_args = []
 
                     if arg.short_option is not None:
                         flag_args.append("-{0}".format(arg.short_option))
@@ -2293,7 +2263,7 @@ class PlanoShellCommand(BaseCommand):
         stdin_isatty = _os.isatty(_sys.stdin.fileno())
         script = None
 
-        if self.file == "-": # pragma: nocover
+        if self.file == "-" or self.file is None and not stdin_isatty: # pragma: nocover
             script = _sys.stdin.read()
         elif self.file is not None:
             try:
@@ -2301,10 +2271,6 @@ class PlanoShellCommand(BaseCommand):
                     script = f.read()
             except IOError as e:
                 raise PlanoError(e)
-        elif not stdin_isatty: # pragma: nocover
-            # Stdin is a pipe
-            script = _sys.stdin.read()
-
         if self.command is not None:
             exec(self.command, globals())
 

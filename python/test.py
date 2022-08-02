@@ -49,7 +49,7 @@ def run_test(west_kubeconfig, east_kubeconfig):
     sleep(30)
 
     try:
-        for i in range(10):
+        for _ in range(10):
             run(f"curl -f {frontend_url}")
     except:
         with working_env(KUBECONFIG=east_kubeconfig):
